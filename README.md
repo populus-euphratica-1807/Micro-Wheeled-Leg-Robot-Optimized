@@ -21,6 +21,10 @@ https://github.com/MuShibo/Micro-Wheeled_leg-Robot
 
 8.多层安全机制：电池欠压停机、倒地自动关停、参数渐变切换、连续失败自动终止优化，最大限度保护硬件。
 
+附带图片：pid参数寻优效果
+<img width="1500" height="900" alt="comparison" src="https://github.com/user-attachments/assets/fe23b650-26e7-43f7-80d2-2788165ccda4" />
+
+
 
 更新日志
 [v2.2] - 2026-06
