@@ -1,5 +1,31 @@
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
+// 双轮足机器人平衡控制系统
+// 原始代码版权 (c) 2024 Mu Shibo (https://github.com/MuShibo/Micro-Wheeled_leg-Robot)
+// 优化 (c) 2026 Populus
+//
+// 本软件基于 MIT 许可发布，详见项目根目录 LICENSE 文件
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
 
 //机器人控制头文件
 #include <MPU6050_tockn.h>
@@ -54,6 +80,11 @@ LowPassFilter lpf_zeropoint{.Tf = 0.1};
 LowPassFilter lpf_roll{.Tf = 0.3};
 
 float joyy_filtered_global = 0;   
+
+
+// 扰动相关
+float perturb_offset = 0.0f;          // 当前角度偏移（度）
+unsigned long perturb_end_time = 0;   // 扰动结束时刻（毫秒）
 
 // commander通信实例
 Commander command = Commander(Serial);
@@ -336,7 +367,13 @@ void lqr_balance_loop()
   LQR_gyro  = (float)mpu6050.getGyroY(); 
 
   // 计算自平衡输出
-  angle_control     = pid_angle(LQR_angle - angle_zeropoint);
+  // 检查是否处于扰动窗口
+  if (perturb_offset != 0.0f && millis() > perturb_end_time) 
+  {
+    perturb_offset = 0.0f;   // 时间到，清零
+  }
+  float effective_zeropoint = angle_zeropoint + perturb_offset;
+  angle_control = pid_angle(LQR_angle - effective_zeropoint);
   gyro_control      = pid_gyro(LQR_gyro);
 
   // 运动细节优化处理
@@ -534,6 +571,19 @@ void webSocketEventCallback(uint8_t num, WStype_t type, uint8_t *payload, size_t
     }
 
     String mode_str = doc["mode"];
+    // ========== 新增扰动指令 ==========
+    if(mode_str == "perturb")
+    {
+      float offset = doc["offset"] | 0.0f;
+      unsigned int duration = doc["duration"] | 0;
+      if (offset != 0.0f && duration > 0) 
+      {
+        perturb_offset = offset;
+        perturb_end_time = millis() + duration;
+        SerialAndWebLn("Perturb: offset=" + String(offset) + "°, dur=" + String(duration) + "ms");
+      }
+      return;
+    }
     if(mode_str == "basic")
     {
       rp.parseBasic(doc);
